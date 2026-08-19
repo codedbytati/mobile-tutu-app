@@ -3,24 +3,38 @@
  * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
  */
 
-import '@/global.css';
+import "@/global.css";
 
-import { Platform } from 'react-native';
+import { Platform } from "react-native";
 
 export const Colors = {
   light: {
-    text: '#000000',
-    background: '#ffffff',
-    backgroundElement: '#F0F0F3',
-    backgroundSelected: '#E0E1E6',
-    textSecondary: '#60646C',
+    text: "#15131C",
+    background: "#F7F4FF",
+    ink: "#15131C",
+    accent: "#B8A7FF",
+    success: "#2ED39B",
+    danger: "#FF837A",
+    border: "#E7E2F3",
+    backgroundElement: "#FFFFFF",
+    backgroundSelected: "#DCD2FF",
+    textSecondary: "#9993AB",
+    highlight: "#F6D96B",
+    barEmpty: "#EEEAF2",
   },
   dark: {
-    text: '#ffffff',
-    background: '#000000',
-    backgroundElement: '#212225',
-    backgroundSelected: '#2E3135',
-    textSecondary: '#B0B4BA',
+    text: "#FFFFFF",
+    background: "#1B1824",
+    backgroundElement: "#212225",
+    backgroundSelected: "#2E3135",
+    textSecondary: "#B9B2C9",
+    ink: "#FFFFFF",
+    accent: "#B8A7FF",
+    success: "#52E0B0",
+    danger: "#FF9B93",
+    border: "#383342",
+    highlight: "#F6D96B",
+    barEmpty: "#393442",
   },
 } as const;
 
@@ -28,26 +42,23 @@ export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
+    sans: "Poppins_400Regular",
+    serif: "Poppins_400Regular",
+    rounded: "Poppins_600SemiBold",
     /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+    mono: "ui-monospace",
   },
   default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+    sans: "Poppins_400Regular",
+    serif: "Poppins_400Regular",
+    rounded: "Poppins_600SemiBold",
+    mono: "monospace",
   },
   web: {
-    sans: 'var(--font-display)',
-    serif: 'var(--font-serif)',
-    rounded: 'var(--font-rounded)',
-    mono: 'var(--font-mono)',
+    sans: "Poppins",
+    serif: "Poppins",
+    rounded: "Poppins",
+    mono: "var(--font-mono)",
   },
 });
 

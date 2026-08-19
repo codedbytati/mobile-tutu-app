@@ -1,180 +1,89 @@
-import { Image } from 'expo-image';
-import { SymbolView } from 'expo-symbols';
-import { Platform, Pressable, ScrollView, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Link, router } from 'expo-router';
+import { useMemo, useState } from 'react';
+import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { ExternalLink } from '@/components/external-link';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Collapsible } from '@/components/ui/collapsible';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
-import { useTheme } from '@/hooks/use-theme';
+import { Colors, Spacing } from '@/constants/theme';
+import { useTransactions } from '@/contexts/TransactionContext';
+import { TRANSACTION_CATEGORIES, type Transaction } from '@/types/transaction';
 
-export default function TabTwoScreen() {
-  const safeAreaInsets = useSafeAreaInsets();
-  const insets = {
-    ...safeAreaInsets,
-    bottom: safeAreaInsets.bottom + BottomTabInset + Spacing.three,
-  };
-  const theme = useTheme();
+const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  const contentPlatformStyle = Platform.select({
-    android: {
-      paddingTop: insets.top,
-      paddingLeft: insets.left,
-      paddingRight: insets.right,
-      paddingBottom: insets.bottom,
-    },
-    web: {
-      paddingTop: Spacing.six,
-      paddingBottom: Spacing.four,
-    },
-  });
+function parseDate(value: string, endOfDay = false) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00'}`);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
+export default function TransactionsScreen() {
+  const { transactions, filters, setFilters, loading, loadingMore, hasMore, error, refresh, loadMore } = useTransactions();
+  const [startDateText, setStartDateText] = useState(filters.startDate?.toISOString().slice(0, 10) ?? '');
+  const [endDateText, setEndDateText] = useState(filters.endDate?.toISOString().slice(0, 10) ?? '');
+  const visibleTransactions = useMemo(() => {
+    const term = filters.search.trim().toLowerCase();
+    return term ? transactions.filter((item) => `${item.description} ${item.category}`.toLowerCase().includes(term)) : transactions;
+  }, [filters.search, transactions]);
 
   return (
-    <ScrollView
-      style={[styles.scrollView, { backgroundColor: theme.background }]}
-      contentInset={insets}
-      contentContainerStyle={[styles.contentContainer, contentPlatformStyle]}>
-      <ThemedView style={styles.container}>
-        <ThemedView style={styles.titleContainer}>
-          <ThemedText type="subtitle">Explore</ThemedText>
-          <ThemedText style={styles.centerText} themeColor="textSecondary">
-            This starter app includes example{'\n'}code to help you get started.
-          </ThemedText>
-
-          <ExternalLink href="https://docs.expo.dev" asChild>
-            <Pressable style={({ pressed }) => pressed && styles.pressed}>
-              <ThemedView type="backgroundElement" style={styles.linkButton}>
-                <ThemedText type="link">Expo documentation</ThemedText>
-                <SymbolView
-                  tintColor={theme.text}
-                  name={{ ios: 'arrow.up.right.square', android: 'link', web: 'link' }}
-                  size={12}
-                />
-              </ThemedView>
-            </Pressable>
-          </ExternalLink>
-        </ThemedView>
-
-        <ThemedView style={styles.sectionsWrapper}>
-          <Collapsible title="File-based routing">
-            <ThemedText type="small">
-              This app has two screens: <ThemedText type="code">src/app/index.tsx</ThemedText> and{' '}
-              <ThemedText type="code">src/app/explore.tsx</ThemedText>
-            </ThemedText>
-            <ThemedText type="small">
-              The layout file in <ThemedText type="code">src/app/_layout.tsx</ThemedText> sets up
-              the tab navigator.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/router/introduction">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Android, iOS, and web support">
-            <ThemedView type="backgroundElement" style={styles.collapsibleContent}>
-              <ThemedText type="small">
-                You can open this project on Android, iOS, and the web. To open the web version,
-                press <ThemedText type="smallBold">w</ThemedText> in the terminal running this
-                project.
-              </ThemedText>
-              <Image
-                source={require('@/assets/images/tutorial-web.png')}
-                style={styles.imageTutorial}
-              />
-            </ThemedView>
-          </Collapsible>
-
-          <Collapsible title="Images">
-            <ThemedText type="small">
-              For static images, you can use the <ThemedText type="code">@2x</ThemedText> and{' '}
-              <ThemedText type="code">@3x</ThemedText> suffixes to provide files for different
-              screen densities.
-            </ThemedText>
-            <Image source={require('@/assets/images/react-logo.png')} style={styles.imageReact} />
-            <ExternalLink href="https://reactnative.dev/docs/images">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Light and dark mode components">
-            <ThemedText type="small">
-              This template has light and dark mode support. The{' '}
-              <ThemedText type="code">useColorScheme()</ThemedText> hook lets you inspect what the
-              user&apos;s current color scheme is, and so you can adjust UI colors accordingly.
-            </ThemedText>
-            <ExternalLink href="https://docs.expo.dev/develop/user-interface/color-themes/">
-              <ThemedText type="linkPrimary">Learn more</ThemedText>
-            </ExternalLink>
-          </Collapsible>
-
-          <Collapsible title="Animations">
-            <ThemedText type="small">
-              This template includes an example of an animated component. The{' '}
-              <ThemedText type="code">src/components/ui/collapsible.tsx</ThemedText> component uses
-              the powerful <ThemedText type="code">react-native-reanimated</ThemedText> library to
-              animate opening this hint.
-            </ThemedText>
-          </Collapsible>
-        </ThemedView>
-        {Platform.OS === 'web' && <WebBadge />}
-      </ThemedView>
-    </ScrollView>
+    <SafeAreaView style={styles.safeArea}>
+      <FlatList
+        data={visibleTransactions}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.content}
+        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
+        onEndReached={() => void loadMore()}
+        onEndReachedThreshold={0.5}
+        ListHeaderComponent={<>
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.title} accessibilityRole="header">Transações</Text>
+            </View>
+          </View>
+          <TextInput accessibilityLabel="Buscar transações" accessibilityHint="Digite uma descrição ou categoria" value={filters.search} onChangeText={(search) => setFilters({ search })} placeholder="Buscar por descrição" placeholderTextColor={Colors.light.textSecondary} style={styles.search} />
+          <View style={styles.dateRow}><TextInput accessibilityLabel="Data inicial" placeholder="Data inicial (AAAA-MM-DD)" value={startDateText} onChangeText={setStartDateText} onEndEditing={() => setFilters({ startDate: parseDate(startDateText) })} placeholderTextColor={Colors.light.textSecondary} style={styles.dateInput} /><TextInput accessibilityLabel="Data final" placeholder="Data final (AAAA-MM-DD)" value={endDateText} onChangeText={setEndDateText} onEndEditing={() => setFilters({ endDate: parseDate(endDateText, true) })} placeholderTextColor={Colors.light.textSecondary} style={styles.dateInput} /></View>
+          <View style={styles.chips}>{(['all', 'income', 'expense'] as const).map((type) => <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected: filters.type === type }} onPress={() => setFilters({ type })} style={[styles.chip, filters.type === type && styles.chipActive]}><Text style={[styles.chipText, filters.type === type && styles.chipTextActive]}>{type === 'all' ? 'Tudo' : type === 'income' ? 'Receitas' : 'Despesas'}</Text></Pressable>)}</View>
+          <FlatList horizontal data={['all', ...TRANSACTION_CATEGORIES]} keyExtractor={(item) => item} showsHorizontalScrollIndicator={false} contentContainerStyle={styles.categoryList} renderItem={({ item }) => <Pressable accessibilityRole="button" accessibilityState={{ selected: filters.category === item }} onPress={() => setFilters({ category: item as typeof filters.category })} style={[styles.categoryChip, filters.category === item && styles.categoryActive]}><Text style={styles.categoryText}>{item === 'all' ? 'Categorias' : item}</Text></Pressable>} />
+          {error && <Text accessibilityRole="alert" style={styles.error}>{error}</Text>}
+        </>}
+        ListEmptyComponent={!loading ? <Text style={styles.empty}>Nenhuma transação encontrada.</Text> : null}
+        ListFooterComponent={loadingMore || hasMore ? <Text style={styles.footer}>{loadingMore ? 'Carregando...' : 'Role para carregar mais'}</Text> : null}
+        renderItem={({ item }) => <TransactionRow transaction={item} />}
+      />
+    </SafeAreaView>
   );
 }
 
+function TransactionRow({ transaction }: { transaction: Transaction }) {
+  const positive = transaction.type === 'income';
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${transaction.description}`} onPress={() => router.push({ pathname: '/new-transaction', params: { id: transaction.id } })} style={styles.row}><View style={[styles.dot, { backgroundColor: positive ? Colors.light.success : Colors.light.danger }]} /><View style={styles.rowDetails}><Text style={styles.description}>{transaction.description}</Text><Text style={styles.meta}>{transaction.category}</Text></View><Text style={[styles.amount, { color: positive ? Colors.light.success : Colors.light.danger }]}>{positive ? '+' : '-'} {money.format(transaction.amount)}</Text></Pressable>;
+}
+
 const styles = StyleSheet.create({
-  scrollView: {
-    flex: 1,
-  },
-  contentContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-  },
-  container: {
-    maxWidth: MaxContentWidth,
-    flexGrow: 1,
-  },
-  titleContainer: {
-    gap: Spacing.three,
-    alignItems: 'center',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.six,
-  },
-  centerText: {
-    textAlign: 'center',
-  },
-  pressed: {
-    opacity: 0.7,
-  },
-  linkButton: {
-    flexDirection: 'row',
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderRadius: Spacing.five,
-    justifyContent: 'center',
-    gap: Spacing.one,
-    alignItems: 'center',
-  },
-  sectionsWrapper: {
-    gap: Spacing.five,
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.three,
-  },
-  collapsibleContent: {
-    alignItems: 'center',
-  },
-  imageTutorial: {
-    width: '100%',
-    aspectRatio: 296 / 171,
-    borderRadius: Spacing.three,
-    marginTop: Spacing.two,
-  },
-  imageReact: {
-    width: 100,
-    height: 100,
-    alignSelf: 'center',
-  },
+  safeArea: { flex: 1, backgroundColor: Colors.light.background },
+  content: { padding: Spacing.four, paddingBottom: 48 },
+  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  eyebrow: { color: Colors.light.text, fontSize: 22, fontWeight: '800', letterSpacing: -0.5 },
+  title: { color: Colors.light.text, fontSize: 35, fontWeight: '500', marginTop: Spacing.five, letterSpacing: -1 },
+  addButton: { backgroundColor: Colors.light.accent, width: 52, height: 52, borderRadius: 26, justifyContent: 'center', alignItems: 'center' },
+  addText: { color: Colors.light.text, fontSize: 30, fontWeight: '300', lineHeight: 34 },
+  search: { borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.backgroundElement, borderRadius: 22, padding: Spacing.three, color: Colors.light.text, marginTop: Spacing.four, fontSize: 16, minHeight: 56 },
+  dateRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.two },
+  dateInput: { flex: 1, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.backgroundElement, borderRadius: 16, minHeight: 48, paddingHorizontal: Spacing.two, color: Colors.light.text, fontSize: 12 },
+  chips: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.three },
+  chip: { borderRadius: 22, borderWidth: 1, borderColor: Colors.light.border, paddingVertical: Spacing.two, paddingHorizontal: Spacing.three, minHeight: 44, justifyContent: 'center', backgroundColor: Colors.light.backgroundElement }, chipActive: { backgroundColor: Colors.light.accent, borderColor: Colors.light.accent },
+  chipText: { color: Colors.light.textSecondary, fontWeight: '700' },
+  chipTextActive: { color: Colors.light.text },
+  categoryList: { gap: Spacing.two, paddingVertical: Spacing.three },
+  categoryChip: { paddingVertical: Spacing.one, paddingHorizontal: Spacing.two, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  categoryActive: { borderBottomColor: Colors.light.accent },
+  categoryText: { color: Colors.light.textSecondary, fontSize: 13 },
+  row: { minHeight: 78, flexDirection: 'row', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  dot: { width: 12, height: 12, borderRadius: 6, marginRight: Spacing.three },
+  rowDetails: { flex: 1 },
+  description: { color: Colors.light.text, fontSize: 16, fontWeight: '700' },
+  meta: { color: Colors.light.textSecondary, fontSize: 13, marginTop: 3 },
+  amount: { fontSize: 14, fontWeight: '800' },
+  empty: { color: Colors.light.textSecondary, textAlign: 'center', paddingVertical: 48 },
+  footer: { color: Colors.light.textSecondary, textAlign: 'center', paddingVertical: Spacing.three },
+  error: { color: Colors.light.danger, marginTop: Spacing.two },
 });
