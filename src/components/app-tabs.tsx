@@ -13,7 +13,7 @@ export default function AppTabs() {
           <TabTrigger name="index" href="/" asChild>
             <IconTab icon={Home} label="Dashboard" />
           </TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild>
+          <TabTrigger name="transactions" href="/transactions" asChild>
             <IconTab icon={BarChart3} label="Transações" />
           </TabTrigger>
           <TabTrigger name="profile" href="/profile" asChild>

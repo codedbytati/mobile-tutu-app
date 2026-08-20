@@ -7,8 +7,6 @@ export const TRANSACTION_CATEGORIES = [
   "Transporte",
   "Moradia",
   "Saúde",
-  "Educação",
-  "Lazer",
   "Salário",
   "Outros",
 ] as const;

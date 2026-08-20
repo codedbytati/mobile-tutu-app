@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 
-const avatarUri = 'https://i.pravatar.cc/180?img=47';
+const Avatar = require('../../assets/images/avatar.png');
 
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
@@ -13,11 +13,10 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.eyebrow}>TUTU APP</Text>
-        <Text style={styles.title} accessibilityRole="header">Profile</Text>
+        <Text style={styles.title} accessibilityRole="header">Conta</Text>
 
         <View style={styles.profileCard}>
-          <Image source={{ uri: avatarUri }} accessibilityLabel="Avatar do perfil" style={styles.avatar} />
+          <Image source={Avatar} accessibilityLabel="Avatar do perfil" style={styles.avatar} />
           <Text style={styles.name}>{user?.displayName || 'Pessoa usuária'}</Text>
           <Text style={styles.email}>{user?.email || 'E-mail não informado'}</Text>
         </View>
@@ -46,7 +45,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: Spacing.four, paddingBottom: 120 },
   eyebrow: { color: Colors.light.text, fontSize: 12, fontWeight: '800', letterSpacing: 1.5 },
-  title: { color: Colors.light.text, fontSize: 38, fontWeight: '800', letterSpacing: -1, marginTop: Spacing.five },
+  title: { color: Colors.light.text, fontSize: 35, fontWeight: '500', letterSpacing: -1, marginTop: Spacing.five },
   profileCard: { alignItems: 'center', backgroundColor: Colors.light.backgroundElement, borderWidth: 1, borderColor: Colors.light.border, borderRadius: 28, padding: Spacing.four, marginTop: Spacing.four },
   avatar: { width: 104, height: 104, borderRadius: 52, backgroundColor: Colors.light.backgroundSelected },
   name: { color: Colors.light.text, fontSize: 22, fontWeight: '800', marginTop: Spacing.three },

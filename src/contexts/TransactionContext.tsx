@@ -75,6 +75,27 @@ function withTimeout<T>(promise: Promise<T>, message: string) {
   ]);
 }
 
+export function getTransactionError(cause: unknown, fallback: string) {
+  if (cause instanceof Error && cause.message.startsWith('O comprovante')) return cause.message;
+  if (cause instanceof Error && cause.message.startsWith('A leitura')) return cause.message;
+  if (cause instanceof Error && cause.message.startsWith('Não foi possível ler')) return cause.message;
+  if (cause instanceof Error && cause.message.startsWith('O Firestore demorou')) return cause.message;
+  if (cause && typeof cause === 'object' && 'code' in cause) {
+    switch (cause.code) {
+      case 'permission-denied':
+        return 'Você não tem permissão para realizar esta operação.';
+      case 'failed-precondition':
+        return 'Não foi possível concluir a operação agora. Tente novamente.';
+      case 'unavailable':
+      case 'deadline-exceeded':
+        return 'O serviço está temporariamente indisponível. Verifique sua conexão e tente novamente.';
+      default:
+        return fallback;
+    }
+  }
+  return fallback;
+}
+
 export function TransactionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -118,7 +139,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       setCursor(snapshot.docs.at(-1));
       setHasMore(page.length === PAGE_SIZE);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Não foi possível carregar as transações.');
+      setError(getTransactionError(cause, 'Não foi possível carregar as transações.'));
     } finally {
       setLoading(false);
       setLoadingMore(false);
@@ -160,7 +181,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       createdAt,
       ...(receiptDataUrl ? { receiptDataUrl, receiptFileName: input.receiptFileName ?? 'comprovante' } : {}),
     };
-    const created = await withTimeout(addDoc(collection(db, 'transactions'), transactionData), 'O Firestore demorou para salvar. Verifique a conexão e tente novamente.');
+    const created = await withTimeout(addDoc(collection(db, 'transactions'), transactionData), 'Não foi possível salvar a transação. Verifique sua conexão e tente novamente.');
     const savedTransaction: Transaction = { id: created.id, ...transactionData };
     setTransactions((current) => [savedTransaction, ...current.filter((item) => item.id !== savedTransaction.id)]);
   };
@@ -179,7 +200,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       updates.receiptDataUrl = await uriToDataUrl(input.receiptUri);
       updates.receiptFileName = input.receiptFileName ?? 'comprovante';
     }
-    await withTimeout(updateDoc(doc(db, 'transactions', id), updates), 'O Firestore demorou para atualizar. Verifique a conexão e tente novamente.');
+    await withTimeout(updateDoc(doc(db, 'transactions', id), updates), 'Não foi possível atualizar a transação. Verifique sua conexão e tente novamente.');
     setTransactions((current) => current.map((item) => item.id === id ? { ...item, ...updates } as Transaction : item));
   };
 

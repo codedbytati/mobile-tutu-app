@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTransactions } from '@/contexts/TransactionContext';
 
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
-const avatarUri = 'https://i.pravatar.cc/120?img=47';
+const Avatar = require('../../assets/images/avatar.png');
 
 function getLastSixMonths() {
   return Array.from({ length: 6 }, (_, index) => {
@@ -22,13 +22,12 @@ function getLastSixMonths() {
 }
 
 export default function DashboardScreen() {
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { transactions } = useTransactions();
   const animation = useRef(new Animated.Value(0)).current;
   const income = transactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
   const expenses = transactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
   const balance = income - expenses;
-  const growth = income > 0 ? Math.round((balance / income) * 100) : 0;
   const months = getLastSixMonths();
   const monthlyIncome = months.map(({ date }) => transactions.filter((item) => { const transactionDate = item.date.toDate(); return item.type === 'income' && transactionDate.getFullYear() === date.getFullYear() && transactionDate.getMonth() === date.getMonth(); }).reduce((sum, item) => sum + item.amount, 0));
   const monthlyExpenses = months.map(({ date }) => transactions.filter((item) => { const transactionDate = item.date.toDate(); return item.type === 'expense' && transactionDate.getFullYear() === date.getFullYear() && transactionDate.getMonth() === date.getMonth(); }).reduce((sum, item) => sum + item.amount, 0));
@@ -45,21 +44,28 @@ export default function DashboardScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.topBar}>
           <View style={styles.profileBlock}>
-            <Image source={{ uri: avatarUri }} accessibilityLabel="Avatar de usuário" style={styles.avatar} />
+            <Image source={Avatar} accessibilityLabel="Avatar de usuário" style={styles.avatar} />
             <Text style={styles.greeting}>Olá, {user?.displayName || 'você'}!</Text>
           </View>
           <View style={styles.topActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Mensagens" style={styles.iconButton}><CreditCard size={20} color={Colors.light.text} /></Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="Notificações" style={styles.iconButton}><Bell size={20} color={Colors.light.text} /></Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Mensagens" style={styles.iconButton}>
+              <CreditCard size={20} color={Colors.light.text} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Notificações" style={styles.iconButton}>
+              <Bell size={20} color={Colors.light.text} />
+            </Pressable>
           </View>
         </View>
 
         <View style={styles.balanceHeader}>
-          <View><Text style={styles.pageTitle} accessibilityRole="header">Saldo da conta</Text><Text style={styles.balanceValue}>{money.format(balance)}</Text></View>
+          <View>
+            <Text style={styles.pageTitle} accessibilityRole="header">Saldo da conta</Text>
+            <Text style={styles.balanceValue}>{money.format(balance)}</Text>
+          </View>
         </View>
 
         <View style={styles.actionRow}>
-          <ActionButton icon={Plus} label="Adicionar transação" onPress={() => router.navigate('/new-transaction')} highlighted />
+          <ActionButton icon={Plus} label="Adicionar transação" onPress={() => router.push('/new-transaction')} highlighted />
         </View>
 
         <View style={styles.healthHeader}><View><Text style={styles.sectionTitle}>Balanço mensal</Text></View></View>
@@ -80,8 +86,8 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.four, paddingBottom: 120 },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   profileBlock: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  avatar: { width: 45, height: 45, borderRadius: 22, backgroundColor: Colors.light.backgroundSelected },
-  greeting: { color: Colors.light.text, fontSize: 15, fontWeight: '500' },
+  avatar: { width: 60, height: 60, borderRadius: 50, backgroundColor: Colors.light.backgroundSelected },
+  greeting: { color: Colors.light.text, fontSize: 20, fontWeight: '500' },
   topActions: { flexDirection: 'row', gap: Spacing.two },
   iconButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center', justifyContent: 'center' },
   tabs: { flexDirection: 'row', gap: Spacing.three, marginTop: Spacing.four },
@@ -94,10 +100,10 @@ const styles = StyleSheet.create({
   flag: { fontSize: 28 },
   growth: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.light.success, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4, marginTop: Spacing.two },
   growthText: { color: Colors.light.text, fontSize: 12, fontWeight: '800' },
-  actionRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.four },
+  actionRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.five, marginBottom: Spacing.five },
   actionButton: { flex: 1, minHeight: 50, borderRadius: 25, backgroundColor: Colors.light.backgroundElement, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: Spacing.one, borderWidth: 1, borderColor: Colors.light.border },
   actionButtonHighlighted: { backgroundColor: Colors.light.accent, borderColor: Colors.light.accent },
-  actionText: { color: Colors.light.text, fontSize: 13, fontWeight: '700' },
+  actionText: { color: Colors.light.text, fontSize: 16, fontWeight: '600' },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.six },
   sectionTitle: { color: Colors.light.text, fontSize: 18, fontWeight: '500' },
   sectionHint: { color: Colors.light.textSecondary, fontSize: 12 },

@@ -11,7 +11,7 @@ export default function AppTabs() {
       <TabList asChild>
         <CustomTabList>
           <TabTrigger name="index" href="/" asChild><IconTab icon={Home} label="Dashboard" /></TabTrigger>
-          <TabTrigger name="explore" href="/explore" asChild><IconTab icon={BarChart3} label="Transações" /></TabTrigger>
+          <TabTrigger name="transactions" href="/transactions" asChild><IconTab icon={BarChart3} label="Transações" /></TabTrigger>
           <TabTrigger name="profile" href="/profile" asChild><IconTab icon={UserRound} label="Profile" /></TabTrigger>
           <TabTrigger name="new-transaction" href="/new-transaction" style={styles.hiddenTab} />
         </CustomTabList>
