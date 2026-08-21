@@ -31,9 +31,10 @@ function parseDateInput(value: string) {
 }
 
 export default function NewTransactionScreen() {
-  const { id } = useLocalSearchParams<{ id?: string }>();
+  const { id, mode } = useLocalSearchParams<{ id?: string; mode?: 'create' | 'edit' }>();
   const { transactions, addTransaction, updateTransaction } = useTransactions();
-  const existing = id ? transactions.find((item) => item.id === id) : undefined;
+  const editing = mode === 'edit';
+  const existing = editing && id ? transactions.find((item) => item.id === id) : undefined;
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [transactionDate, setTransactionDate] = useState(new Date());

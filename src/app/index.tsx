@@ -65,7 +65,7 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.actionRow}>
-          <ActionButton icon={Plus} label="Adicionar transação" onPress={() => router.push('/new-transaction')} highlighted />
+          <ActionButton icon={Plus} label="Adicionar transação" onPress={() => router.push({ pathname: '/new-transaction', params: { mode: 'create' } })} highlighted />
         </View>
 
         <View style={styles.healthHeader}><View><Text style={styles.sectionTitle}>Balanço mensal</Text></View></View>

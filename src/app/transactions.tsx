@@ -1,13 +1,15 @@
 import { router } from 'expo-router';
-import { Banknote, CarFront, Cross, HouseHeart, ListCollapse, Utensils } from 'lucide-react-native';
-import { useMemo, useState } from 'react';
-import { FlatList, Pressable, RefreshControl, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Banknote, Bell, CarFront, CreditCard, Cross, HouseHeart, ListCollapse, Utensils } from 'lucide-react-native';
+import { useMemo } from 'react';
+import { FlatList, Image, Pressable, RefreshControl, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Colors, Spacing } from '@/constants/theme';
 import { useTransactions } from '@/contexts/TransactionContext';
 import type { Transaction } from '@/types/transaction';
+import { useAuth } from '@/contexts/AuthContext';
 
+const Avatar = require('../../assets/images/avatar.png');
 const money = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const dateFormatter = new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 const CATEGORY_ICONS = {
@@ -21,20 +23,13 @@ const CATEGORY_ICONS = {
 
 type TransactionGroup = { key: string; date: Date; transactions: Transaction[] };
 
-function parseDate(value: string, endOfDay = false) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
-  const date = new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00'}`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
-}
-
 function getDateKey(date: Date) {
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
 export default function TransactionsScreen() {
+  const { user } = useAuth();
   const { transactions, filters, setFilters, loading, loadingMore, hasMore, error, refresh, loadMore } = useTransactions();
-  const [startDateText, setStartDateText] = useState(filters.startDate?.toISOString().slice(0, 10) ?? '');
-  const [endDateText, setEndDateText] = useState(filters.endDate?.toISOString().slice(0, 10) ?? '');
   const visibleTransactions = useMemo(() => {
     const term = filters.search.trim().toLowerCase();
     return term ? transactions.filter((item) => `${item.description} ${item.category}`.toLowerCase().includes(term)) : transactions;
@@ -53,29 +48,44 @@ export default function TransactionsScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <FlatList
-        data={transactionGroups}
-        keyExtractor={(item) => item.key}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
-        onEndReached={() => void loadMore()}
-        onEndReachedThreshold={0.5}
-        ListHeaderComponent={<>
-          <View style={styles.headerRow}>
-            <View>
-              <Text style={styles.title} accessibilityRole="header">Transações</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.topBar}>
+          <View style={styles.profileBlock}>
+            <Image source={Avatar} accessibilityLabel="Avatar de usuário" style={styles.avatar} />
+            <Text style={styles.greeting}>Olá, {user?.displayName || 'você'}!</Text>
+          </View>
+          <View style={styles.topActions}>
+            <Pressable accessibilityRole="button" accessibilityLabel="Mensagens" style={styles.iconButton}>
+              <CreditCard size={20} color={Colors.light.text} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Notificações" style={styles.iconButton}>
+              <Bell size={20} color={Colors.light.text} />
+            </Pressable>
+          </View>
+        </View>
+        <FlatList
+          data={transactionGroups}
+          keyExtractor={(item) => item.key}
+          refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
+          onEndReached={() => void loadMore()}
+          onEndReachedThreshold={0.5}
+          ListHeaderComponent={<>
+            <View style={styles.headerRow}>
+              <View>
+                <Text style={styles.title} accessibilityRole="header">Transações</Text>
+              </View>
             </View>
-          </View>
-          <TextInput accessibilityLabel="Buscar transações" accessibilityHint="Digite uma descrição ou categoria" value={filters.search} onChangeText={(search) => setFilters({ search })} placeholder="Buscar por descrição" placeholderTextColor={Colors.light.textSecondary} style={styles.search} />
-          <View style={styles.chips}>{(['all', 'income', 'expense'] as const).map((type) => <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected: filters.type === type }} onPress={() => setFilters({ type })} style={[styles.chip, filters.type === type && styles.chipActive]}>
-            <Text style={[styles.chipText, filters.type === type && styles.chipTextActive]}>{type === 'all' ? 'Tudo' : type === 'income' ? 'Receitas' : 'Despesas'}</Text>
-          </Pressable>)}
-          </View>
-        </>}
-        ListEmptyComponent={!loading ? <Text style={styles.empty}>Nenhuma transação encontrada.</Text> : null}
-        ListFooterComponent={loadingMore || hasMore ? <Text style={styles.footer}>{loadingMore ? 'Carregando...' : 'Role para carregar mais'}</Text> : null}
-        renderItem={({ item }) => <TransactionGroupView group={item} />}
-      />
+            <TextInput accessibilityLabel="Buscar transações" accessibilityHint="Digite uma descrição ou categoria" value={filters.search} onChangeText={(search) => setFilters({ search })} placeholder="Buscar por descrição" placeholderTextColor={Colors.light.textSecondary} style={styles.search} />
+            <View style={styles.chips}>{(['all', 'income', 'expense'] as const).map((type) => <Pressable key={type} accessibilityRole="button" accessibilityState={{ selected: filters.type === type }} onPress={() => setFilters({ type })} style={[styles.chip, filters.type === type && styles.chipActive]}>
+              <Text style={[styles.chipText, filters.type === type && styles.chipTextActive]}>{type === 'all' ? 'Tudo' : type === 'income' ? 'Receitas' : 'Despesas'}</Text>
+            </Pressable>)}
+            </View>
+          </>}
+          ListEmptyComponent={!loading ? <Text style={styles.empty}>Nenhuma transação encontrada.</Text> : null}
+          ListFooterComponent={loadingMore || hasMore ? <Text style={styles.footer}>{loadingMore ? 'Carregando...' : 'Role para carregar mais'}</Text> : null}
+          renderItem={({ item }) => <TransactionGroupView group={item} />}
+        />
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -90,7 +100,7 @@ function TransactionGroupView({ group }: { group: TransactionGroup }) {
 function TransactionRow({ transaction }: { transaction: Transaction }) {
   const positive = transaction.type === 'income';
   const CategoryIcon = CATEGORY_ICONS[transaction.category];
-  return <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${transaction.description}`} onPress={() => router.push({ pathname: '/new-transaction', params: { id: transaction.id } })} style={styles.row}><View style={[styles.categoryIcon, { backgroundColor: positive ? Colors.light.success : Colors.light.danger }]}><CategoryIcon size={20} color={Colors.light.text} /></View>
+  return <Pressable accessibilityRole="button" accessibilityLabel={`Editar ${transaction.description}`} onPress={() => router.push({ pathname: '/new-transaction', params: { id: transaction.id, mode: 'edit' } })} style={styles.row}><View style={[styles.categoryIcon, { backgroundColor: positive ? Colors.light.success : Colors.light.danger }]}><CategoryIcon size={20} color={Colors.light.text} /></View>
     <View style={styles.rowDetails}>
       <Text style={styles.description}>{transaction.description}</Text>
       <Text style={styles.meta}>{transaction.category}</Text>
@@ -100,6 +110,12 @@ function TransactionRow({ transaction }: { transaction: Transaction }) {
 }
 
 const styles = StyleSheet.create({
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  profileBlock: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  avatar: { width: 60, height: 60, borderRadius: 50, backgroundColor: Colors.light.backgroundSelected },
+  greeting: { color: Colors.light.text, fontSize: 20, fontWeight: '500' },
+  topActions: { flexDirection: 'row', gap: Spacing.two },
+  iconButton: { width: 42, height: 42, borderRadius: 21, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center', justifyContent: 'center' },
   safeArea: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: Spacing.four, paddingBottom: 48 },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
