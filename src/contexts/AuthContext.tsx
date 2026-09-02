@@ -1,12 +1,16 @@
 import {
     createUserWithEmailAndPassword,
     signOut as firebaseSignOut,
+    GoogleAuthProvider,
     onAuthStateChanged,
+    signInWithCredential,
     signInWithEmailAndPassword,
+    signInWithPopup,
     updateProfile,
     type User,
 } from 'firebase/auth';
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
+import { Platform } from 'react-native';
 
 import { auth } from '@/services/firebase/firebaseConfig';
 
@@ -14,6 +18,7 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   signIn(email: string, password: string): Promise<void>;
+  signInWithGoogle(idToken?: string): Promise<void>;
   signUp(username: string, email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
 }
@@ -34,6 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     loading,
     signIn: async (email, password) => {
       await signInWithEmailAndPassword(auth, email.trim(), password);
+    },
+    signInWithGoogle: async (idToken) => {
+      const provider = new GoogleAuthProvider();
+      if (Platform.OS === 'web') {
+        await signInWithPopup(auth, provider);
+        return;
+      }
+      if (!idToken) throw new Error('Não foi possível obter o token do Google.');
+      await signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
     },
     signUp: async (username, email, password) => {
       const credentials = await createUserWithEmailAndPassword(auth, email.trim(), password);

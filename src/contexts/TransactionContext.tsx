@@ -1,6 +1,7 @@
 import {
     addDoc,
     collection,
+    deleteDoc,
     doc,
     getDocs,
     limit,
@@ -27,6 +28,7 @@ const defaultFilters: TransactionFilters = { search: '', type: 'all', category: 
 
 interface TransactionContextValue {
   transactions: Transaction[];
+  dashboardTransactions: Transaction[];
   filters: TransactionFilters;
   loading: boolean;
   loadingMore: boolean;
@@ -37,12 +39,17 @@ interface TransactionContextValue {
   loadMore(): Promise<void>;
   addTransaction(input: TransactionInput): Promise<void>;
   updateTransaction(id: string, input: TransactionInput): Promise<void>;
+  deleteTransaction(id: string): Promise<void>;
 }
 
 const TransactionContext = createContext<TransactionContextValue | undefined>(undefined);
 
 function toTransaction(snapshot: QueryDocumentSnapshot<DocumentData>): Transaction {
   return { id: snapshot.id, ...(snapshot.data() as Omit<Transaction, 'id'>) };
+}
+
+function sortTransactions(items: Transaction[]) {
+  return [...items].sort((first, second) => second.date.toMillis() - first.date.toMillis());
 }
 
 async function uriToDataUrl(uri: string) {
@@ -99,6 +106,7 @@ export function getTransactionError(cause: unknown, fallback: string) {
 export function TransactionProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [dashboardTransactions, setDashboardTransactions] = useState<Transaction[]>([]);
   const [filters, setFiltersState] = useState(defaultFilters);
   const [cursor, setCursor] = useState<QueryDocumentSnapshot<DocumentData>>();
   const [loading, setLoading] = useState(false);
@@ -106,9 +114,10 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
   const [hasMore, setHasMore] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchPage = useCallback(async (reset: boolean) => {
+  const fetchPage = useCallback(async (reset: boolean, pageCursor?: QueryDocumentSnapshot<DocumentData>) => {
     if (!user) {
       setTransactions([]);
+      setDashboardTransactions([]);
       setCursor(undefined);
       setHasMore(false);
       return;
@@ -119,23 +128,19 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     try {
       const constraints: QueryConstraint[] = [where('userId', '==', user.uid)];
       if (filters.search.trim()) {
-        const term = filters.search.trim().toLowerCase();
+        const searchTerm = filters.search.trim().toLowerCase();
         constraints.push(
-          where('searchDescription', '>=', term),
-          where('searchDescription', '<=', `${term}\uf8ff`),
+          where('searchDescription', '>=', searchTerm),
+          where('searchDescription', '<=', `${searchTerm}\uf8ff`),
+          orderBy('searchDescription'),
         );
       }
-      if (filters.type !== 'all') constraints.push(where('type', '==', filters.type));
-      if (filters.category !== 'all') constraints.push(where('category', '==', filters.category));
-      if (filters.startDate) constraints.push(where('date', '>=', Timestamp.fromDate(filters.startDate)));
-      if (filters.endDate) constraints.push(where('date', '<=', Timestamp.fromDate(filters.endDate)));
-      if (filters.search.trim()) constraints.push(orderBy('searchDescription'));
-      constraints.push(orderBy('date', 'desc'), limit(PAGE_SIZE));
-      if (!reset && cursor) constraints.splice(constraints.length - 1, 0, startAfter(cursor));
+      constraints.push(limit(PAGE_SIZE));
+      if (!reset && pageCursor) constraints.splice(constraints.length - 1, 0, startAfter(pageCursor));
 
       const snapshot = await getDocs(query(collection(db, 'transactions'), ...constraints));
       const page = snapshot.docs.map(toTransaction);
-      setTransactions((current) => reset ? page : [...current, ...page]);
+      setTransactions((current) => sortTransactions(reset ? page : [...current, ...page]));
       setCursor(snapshot.docs.at(-1));
       setHasMore(page.length === PAGE_SIZE);
     } catch (cause) {
@@ -144,11 +149,31 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
       setLoading(false);
       setLoadingMore(false);
     }
-  }, [cursor, filters, user]);
+  }, [filters.search, user]);
+
+  const fetchDashboardTransactions = useCallback(async () => {
+    if (!user) {
+      setDashboardTransactions([]);
+      return;
+    }
+    try {
+      const snapshot = await getDocs(query(
+        collection(db, 'transactions'),
+        where('userId', '==', user.uid),
+      ));
+      setDashboardTransactions(sortTransactions(snapshot.docs.map(toTransaction)));
+    } catch (cause) {
+      setError(getTransactionError(cause, 'Não foi possível carregar o histórico de transações.'));
+    }
+  }, [user]);
 
   useEffect(() => {
     void fetchPage(true);
-  }, [filters, user]);
+  }, [fetchPage]);
+
+  useEffect(() => {
+    void fetchDashboardTransactions();
+  }, [fetchDashboardTransactions]);
 
   const setFilters = (next: Partial<TransactionFilters>) => {
     setCursor(undefined);
@@ -160,7 +185,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     return fetchPage(true);
   };
 
-  const loadMore = () => hasMore && !loadingMore ? fetchPage(false) : Promise.resolve();
+  const loadMore = () => hasMore && !loadingMore ? fetchPage(false, cursor) : Promise.resolve();
 
   const addTransaction = async (input: TransactionInput) => {
     if (!user) throw new Error('É necessário estar autenticado.');
@@ -184,6 +209,7 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     const created = await withTimeout(addDoc(collection(db, 'transactions'), transactionData), 'Não foi possível salvar a transação. Verifique sua conexão e tente novamente.');
     const savedTransaction: Transaction = { id: created.id, ...transactionData };
     setTransactions((current) => [savedTransaction, ...current.filter((item) => item.id !== savedTransaction.id)]);
+    setDashboardTransactions((current) => [savedTransaction, ...current.filter((item) => item.id !== savedTransaction.id)]);
   };
 
   const updateTransaction = async (id: string, input: TransactionInput) => {
@@ -202,9 +228,17 @@ export function TransactionProvider({ children }: { children: ReactNode }) {
     }
     await withTimeout(updateDoc(doc(db, 'transactions', id), updates), 'Não foi possível atualizar a transação. Verifique sua conexão e tente novamente.');
     setTransactions((current) => current.map((item) => item.id === id ? { ...item, ...updates } as Transaction : item));
+    setDashboardTransactions((current) => current.map((item) => item.id === id ? { ...item, ...updates } as Transaction : item));
   };
 
-  return <TransactionContext.Provider value={{ transactions, filters, loading, loadingMore, hasMore, error, setFilters, refresh, loadMore, addTransaction, updateTransaction }}>{children}</TransactionContext.Provider>;
+  const deleteTransaction = async (id: string) => {
+    if (!user) throw new Error('É necessário estar autenticado.');
+    await withTimeout(deleteDoc(doc(db, 'transactions', id)), 'Não foi possível excluir a transação. Verifique sua conexão e tente novamente.');
+    setTransactions((current) => current.filter((item) => item.id !== id));
+    setDashboardTransactions((current) => current.filter((item) => item.id !== id));
+  };
+
+  return <TransactionContext.Provider value={{ transactions, dashboardTransactions, filters, loading, loadingMore, hasMore, error, setFilters, refresh, loadMore, addTransaction, updateTransaction, deleteTransaction }}>{children}</TransactionContext.Provider>;
 }
 
 export function useTransactions() {

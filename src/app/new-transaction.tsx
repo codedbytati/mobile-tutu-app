@@ -1,9 +1,9 @@
 import DateTimePicker, { type DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Banknote, CarFront, Cross, HouseHeart, ListCollapse, Utensils } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -21,18 +21,25 @@ const CATEGORY_ICONS = {
 } as const;
 
 function formatDateInput(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  return `${day}/${month}/${date.getFullYear()}`;
 }
 
 function parseDateInput(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
-  const date = new Date(`${value}T12:00:00`);
-  return Number.isNaN(date.getTime()) ? undefined : date;
+  const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!match) return undefined;
+  const [, dayText, monthText, yearText] = match;
+  const day = Number(dayText);
+  const month = Number(monthText) - 1;
+  const year = Number(yearText);
+  const date = new Date(year, month, day, 12);
+  return date.getFullYear() === year && date.getMonth() === month && date.getDate() === day ? date : undefined;
 }
 
 export default function NewTransactionScreen() {
   const { id, mode } = useLocalSearchParams<{ id?: string; mode?: 'create' | 'edit' }>();
-  const { transactions, addTransaction, updateTransaction } = useTransactions();
+  const { transactions, addTransaction, updateTransaction, deleteTransaction } = useTransactions();
   const editing = mode === 'edit';
   const existing = editing && id ? transactions.find((item) => item.id === id) : undefined;
   const [description, setDescription] = useState('');
@@ -43,10 +50,11 @@ export default function NewTransactionScreen() {
   const [category, setCategory] = useState<TransactionCategory>('Outros');
   const [receiptUri, setReceiptUri] = useState<string>();
   const [receiptFileName, setReceiptFileName] = useState<string>();
+  const [receiptMimeType, setReceiptMimeType] = useState<string>();
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     if (existing) {
       const date = existing.date.toDate();
       setDescription(existing.description);
@@ -55,6 +63,9 @@ export default function NewTransactionScreen() {
       setTransactionDateText(formatDateInput(date));
       setType(existing.type);
       setCategory(existing.category);
+      setReceiptUri(existing.receiptDataUrl ?? existing.receiptUrl);
+      setReceiptFileName(existing.receiptFileName);
+      setReceiptMimeType(undefined);
       return;
     }
     const today = new Date();
@@ -66,8 +77,9 @@ export default function NewTransactionScreen() {
     setCategory('Outros');
     setReceiptUri(undefined);
     setReceiptFileName(undefined);
+    setReceiptMimeType(undefined);
     setErrors([]);
-  }, [existing]);
+  }, [existing]));
 
   const handleDateChange = (event: DateTimePickerEvent, selectedDate?: Date) => {
     if (event.type === 'set' && selectedDate) {
@@ -89,6 +101,7 @@ export default function NewTransactionScreen() {
     if (!result.canceled) {
       setReceiptUri(result.assets[0].uri);
       setReceiptFileName(result.assets[0].fileName ?? 'imagem');
+      setReceiptMimeType(result.assets[0].mimeType);
     }
   };
 
@@ -101,15 +114,20 @@ export default function NewTransactionScreen() {
     if (!result.canceled) {
       setReceiptUri(result.assets[0].uri);
       setReceiptFileName(result.assets[0].name);
+      setReceiptMimeType(result.assets[0].mimeType);
     }
   };
 
   const save = async () => {
     const numericAmount = Number(amount.replace(',', '.'));
+    const validReceiptType = !receiptMimeType || receiptMimeType.startsWith('image/') || receiptMimeType === 'application/pdf' || receiptMimeType.startsWith('text/');
     const validationErrors = [
       description.trim().length < 3 ? 'Informe uma descrição com pelo menos 3 caracteres.' : '',
       !Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 100000000 ? 'Informe um valor entre R$ 0,01 e R$ 100.000.000,00.' : '',
+      !Number.isFinite(transactionDate.getTime()) ? 'Informe uma data válida.' : '',
+      type !== 'income' && type !== 'expense' ? 'Escolha um tipo de transação válido.' : '',
       !TRANSACTION_CATEGORIES.includes(category) ? 'Escolha uma categoria válida.' : '',
+      !validReceiptType ? 'O comprovante deve ser uma imagem, PDF ou arquivo de texto.' : '',
     ].filter(Boolean);
     if (validationErrors.length) { setErrors(validationErrors); return; }
     setSaving(true); setErrors([]);
@@ -123,6 +141,19 @@ export default function NewTransactionScreen() {
       setErrors([getTransactionError(cause, existing ? 'Não foi possível atualizar a transação.' : 'Não foi possível salvar a transação.')]);
     }
     finally { setSaving(false); }
+  };
+
+  const remove = async () => {
+    if (!existing) return;
+    setSaving(true);
+    try {
+      await deleteTransaction(existing.id);
+      router.replace('/');
+    } catch (cause) {
+      setErrors([getTransactionError(cause, 'Não foi possível excluir a transação.')]);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return <SafeAreaView style={styles.safeArea}>
@@ -142,7 +173,7 @@ export default function NewTransactionScreen() {
         <Text style={styles.label}>Valor</Text>
         <TextInput accessibilityLabel="Valor da transação" keyboardType="decimal-pad" value={amount} onChangeText={setAmount} placeholder="0,00" style={styles.input} />
         <Text style={styles.label}>Data da transação</Text>
-        {Platform.OS === 'web' ? <TextInput accessibilityLabel="Data da transação" value={transactionDateText} onChangeText={setTransactionDateText} onBlur={commitWebDate} placeholder="AAAA-MM-DD" style={styles.input} /> : <DateTimePicker accessibilityLabel="Data da transação" value={transactionDate} mode="date" display="default" onChange={handleDateChange} />}
+        {Platform.OS === 'web' ? <TextInput accessibilityLabel="Data da transação" value={transactionDateText} onChangeText={setTransactionDateText} onBlur={commitWebDate} placeholder="DD/MM/AAAA" style={styles.input} /> : <DateTimePicker accessibilityLabel="Data da transação" value={transactionDate} mode="date" display="default" onChange={handleDateChange} />}
         <Text style={styles.label}>Categoria</Text>
         <View style={styles.categories}>{TRANSACTION_CATEGORIES.map((item) => {
           const Icon = CATEGORY_ICONS[item];
@@ -164,9 +195,14 @@ export default function NewTransactionScreen() {
         </View>
         {receiptUri && <Text style={styles.selectedFile}>{receiptFileName ?? 'Arquivo selecionado'}</Text>}
         {receiptUri && <Image accessibilityLabel="Prévia do comprovante" source={{ uri: receiptUri }} style={styles.preview} />}
-        <Pressable disabled={saving} accessibilityRole="button" accessibilityState={{ disabled: saving }} onPress={() => void save()} style={[styles.save, saving && styles.saveDisabled]}>
-          <Text style={styles.saveText}>{saving ? 'Salvando...' : existing ? 'Atualizar transação' : 'Salvar transação'}</Text>
-        </Pressable>
+        <View style={existing ? styles.actionRow : undefined}>
+          <Pressable disabled={saving} accessibilityRole="button" accessibilityState={{ disabled: saving }} onPress={() => void save()} style={[styles.save, existing && styles.actionButton]}>
+            <Text style={styles.saveText}>{saving ? 'Salvando...' : existing ? 'Atualizar transação' : 'Salvar transação'}</Text>
+          </Pressable>
+          {existing && <Pressable disabled={saving} accessibilityRole="button" accessibilityState={{ disabled: saving }} onPress={() => void remove()} style={[styles.deleteButton, saving && styles.saveDisabled]}>
+            <Text style={styles.deleteText}>Excluir transação</Text>
+          </Pressable>}
+        </View>
       </ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 
@@ -202,8 +238,12 @@ const styles = StyleSheet.create({
   receiptText: { color: Colors.light.text, fontSize: 16, fontWeight: '600' },
   selectedFile: { color: Colors.light.success, fontSize: 13, fontWeight: '700', marginTop: Spacing.one },
   preview: { width: '100%', height: 180, borderRadius: 18, marginTop: Spacing.two },
+  actionRow: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.four },
   save: { backgroundColor: Colors.light.accent, minHeight: 56, borderRadius: 28, justifyContent: 'center', alignItems: 'center', marginTop: Spacing.four },
+  actionButton: { flex: 1, marginTop: 0 },
+  deleteButton: { flex: 1, minHeight: 56, borderRadius: 28, borderWidth: 1, borderColor: Colors.light.danger, justifyContent: 'center', alignItems: 'center' },
   saveDisabled: { opacity: 0.55 },
   saveText: { color: Colors.light.text, fontSize: 18, fontWeight: '600' },
+  deleteText: { color: Colors.light.danger, fontSize: 18, fontWeight: '600', textAlign: 'center' },
   error: { color: Colors.light.danger, marginBottom: Spacing.one },
 });

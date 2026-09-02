@@ -1,6 +1,6 @@
 import { router } from 'expo-router';
 import { Bell, CreditCard, Plus, Send } from 'lucide-react-native';
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LineChart } from 'react-native-gifted-charts';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -23,14 +23,14 @@ function getLastSixMonths() {
 
 export default function DashboardScreen() {
   const { user } = useAuth();
-  const { transactions } = useTransactions();
-  const animation = useRef(new Animated.Value(0)).current;
-  const income = transactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
-  const expenses = transactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
+  const { dashboardTransactions, error } = useTransactions();
+  const [animation] = useState(() => new Animated.Value(0));
+  const income = dashboardTransactions.filter((item) => item.type === 'income').reduce((sum, item) => sum + item.amount, 0);
+  const expenses = dashboardTransactions.filter((item) => item.type === 'expense').reduce((sum, item) => sum + item.amount, 0);
   const balance = income - expenses;
   const months = getLastSixMonths();
-  const monthlyIncome = months.map(({ date }) => transactions.filter((item) => { const transactionDate = item.date.toDate(); return item.type === 'income' && transactionDate.getFullYear() === date.getFullYear() && transactionDate.getMonth() === date.getMonth(); }).reduce((sum, item) => sum + item.amount, 0));
-  const monthlyExpenses = months.map(({ date }) => transactions.filter((item) => { const transactionDate = item.date.toDate(); return item.type === 'expense' && transactionDate.getFullYear() === date.getFullYear() && transactionDate.getMonth() === date.getMonth(); }).reduce((sum, item) => sum + item.amount, 0));
+  const monthlyIncome = months.map(({ date }) => dashboardTransactions.filter((item) => { const transactionDate = item.date.toDate(); return item.type === 'income' && transactionDate.getFullYear() === date.getFullYear() && transactionDate.getMonth() === date.getMonth(); }).reduce((sum, item) => sum + item.amount, 0));
+  const monthlyExpenses = months.map(({ date }) => dashboardTransactions.filter((item) => { const transactionDate = item.date.toDate(); return item.type === 'expense' && transactionDate.getFullYear() === date.getFullYear() && transactionDate.getMonth() === date.getMonth(); }).reduce((sum, item) => sum + item.amount, 0));
   const chartMaximum = Math.max(...monthlyIncome, ...monthlyExpenses, 1);
   const incomeData = monthlyIncome.map((value, index) => ({ value, label: months[index].label }));
   const expenseData = monthlyExpenses.map((value, index) => ({ value, label: months[index].label }));
@@ -57,6 +57,8 @@ export default function DashboardScreen() {
           </View>
         </View>
 
+        <Animated.View style={[styles.dashboardContent, { opacity: animation, transform: [{ translateY: animation.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }] }]}>
+        {error ? <Text accessibilityRole="alert" style={styles.error}>{error}</Text> : null}
         <View style={styles.balanceHeader}>
           <View>
             <Text style={styles.pageTitle} accessibilityRole="header">Saldo da conta</Text>
@@ -72,6 +74,7 @@ export default function DashboardScreen() {
         <View style={styles.chart} accessibilityRole="image" accessibilityLabel={`Gráfico de linhas mensais de receitas e despesas dos últimos seis meses. Receitas totais ${money.format(income)} e despesas totais ${money.format(expenses)}`}>
           <LineChart data={incomeData} data2={expenseData} height={165} maxValue={chartMaximum} noOfSections={4} spacing={48} initialSpacing={12} endSpacing={12} color={Colors.light.success} color2={Colors.light.danger} thickness={3} thickness2={3} curved isAnimated animationDuration={700} hideDataPoints={false} dataPointsColor={Colors.light.success} dataPointsColor2={Colors.light.danger} rulesColor={Colors.light.border} rulesThickness={1} yAxisTextStyle={styles.chartAxisText} xAxisLabelTextStyle={styles.chartAxisText} yAxisLabelWidth={42} yAxisColor="transparent" xAxisColor="transparent" hideRules={false} />
         </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -94,6 +97,8 @@ const styles = StyleSheet.create({
   activeTab: { color: Colors.light.text, fontSize: 12, fontWeight: '800' },
   inactiveTab: { color: Colors.light.textSecondary, fontSize: 12 },
   balanceHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: Spacing.five },
+  dashboardContent: { flex: 1 },
+  error: { color: Colors.light.danger, marginTop: Spacing.two },
   pageTitle: { color: Colors.light.text, fontSize: 35, fontWeight: '500', letterSpacing: -1 },
   balanceValue: { color: Colors.light.text, fontSize: 25, fontWeight: '500', marginTop: Spacing.one },
   currency: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one, marginTop: Spacing.two },

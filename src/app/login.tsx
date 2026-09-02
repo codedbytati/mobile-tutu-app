@@ -1,3 +1,4 @@
+import * as AuthSession from 'expo-auth-session';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,13 +7,25 @@ import { Colors, Spacing } from '@/constants/theme';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginScreen() {
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, signInWithGoogle } = useAuth();
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [registering, setRegistering] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const googleClientId = Platform.select({
+    android: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+    ios: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    default: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+  });
+  const discovery = AuthSession.useAutoDiscovery('https://accounts.google.com');
+  const [request, , promptAsync] = AuthSession.useAuthRequest({
+    clientId: googleClientId ?? '',
+    responseType: AuthSession.ResponseType.IdToken,
+    scopes: ['openid', 'profile', 'email'],
+    redirectUri: AuthSession.makeRedirectUri({ scheme: 'mobilebytebank' }),
+  }, discovery);
 
   const submit = async () => {
     const validationError = registering && username.trim().length < 2
@@ -40,6 +53,28 @@ export default function LoginScreen() {
     }
   };
 
+  const googleSignIn = async () => {
+    setError(null);
+    if (Platform.OS === 'web') {
+      setLoading(true);
+      try { await signInWithGoogle(); }
+      catch { setError('Não foi possível entrar com o Google.'); }
+      finally { setLoading(false); }
+      return;
+    }
+    if (!googleClientId || !request) {
+      setError('Configure o Client ID do Google no arquivo .env.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const result = await promptAsync();
+      if (result.type === 'success' && result.params.id_token) await signInWithGoogle(result.params.id_token);
+      else if (result.type === 'error') setError('Não foi possível entrar com o Google.');
+    } catch { setError('Não foi possível abrir o login do Google.'); }
+    finally { setLoading(false); }
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -58,6 +93,9 @@ export default function LoginScreen() {
             <Field label="Senha" accessibilityLabel="Senha" value={password} onChangeText={setPassword} placeholder="Mínimo de 6 caracteres" secureTextEntry />
             <Pressable disabled={loading} accessibilityRole="button" accessibilityState={{ disabled: loading }} onPress={() => void submit()} style={[styles.primaryButton, loading && styles.disabledButton]}>
               <Text style={styles.primaryText}>{loading ? 'Aguarde...' : registering ? 'Criar conta' : 'Entrar'}</Text>
+            </Pressable>
+            <Pressable disabled={loading} accessibilityRole="button" accessibilityState={{ disabled: loading }} onPress={() => void googleSignIn()} style={[styles.googleButton, loading && styles.disabledButton]}>
+              <Text style={styles.googleText}>Continuar com Google</Text>
             </Pressable>
             <Text style={styles.terms}>Ao continuar, você concorda com os Termos de Serviço e a Política de Privacidade.</Text>
             <Pressable accessibilityRole="button" onPress={() => { setRegistering((current) => !current); setError(null); }} style={styles.switchButton}>
@@ -90,6 +128,8 @@ const styles = StyleSheet.create({
   primaryButton: { minHeight: 56, borderRadius: 28, backgroundColor: Colors.light.accent, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.one },
   disabledButton: { opacity: 0.6 },
   primaryText: { color: Colors.light.text, fontWeight: '500', fontSize: 14 },
+  googleButton: { minHeight: 56, borderRadius: 28, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center', justifyContent: 'center', marginTop: Spacing.two },
+  googleText: { color: Colors.light.text, fontWeight: '600', fontSize: 14 },
   terms: { color: Colors.light.textSecondary, fontSize: 11, lineHeight: 17, textAlign: 'center', marginTop: Spacing.four },
   switchButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center' },
   switchText: { color: Colors.light.text, fontWeight: '700' },
